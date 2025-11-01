@@ -1,7 +1,7 @@
-(async () => {
+js:(async () => {
   "use strict";
 
-  // DOM references
+  // === DOM references ===
   const now_playing = document.querySelector('.now-playing');
   const track_art = document.querySelector('.track-art');
   const coverEl = track_art.querySelector('.cover');
@@ -16,31 +16,39 @@
   const volume_slider = document.querySelector('.volume_slider');
   const curr_time = document.querySelector('.current-time');
   const total_duration = document.querySelector('.total-duration');
-  const loader = document.querySelector('.loader');
-  const strokes = loader ? Array.from(loader.querySelectorAll('.stroke')) : [];
 
   const curr_track = new Audio();
   let flat_music_list = [];
   let track_index = 0, isPlaying = false, isRandom = false, isRepeating = false, updateTimer = null;
 
-  // --- Load JSON data ---
-  const response = await fetch('./json/tcd.json');
-  const musicData = await response.json();
+  // === Fetch sheet data ===
+  async function fetchSheetData() {
+    try {
+      const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbzO_mlxSnqWv6mlvE0F0xBBUWXdvWx2hCzZ9C5XTGqXMV4DkBcqW7lW4MRQI2rnK41m/exec";
+      const res = await fetch(SHEET_API_URL, { cache: "no-store" });
+      if (!res.ok) throw new Error(`Failed to fetch sheet: ${res.status}`);
+      const raw = await res.json();
+      return raw.filter(row => Object.values(row).some(v => String(v || "").trim() !== ""));
+    } catch (err) {
+      console.error("Error fetching sheet data:", err);
+      return [];
+    }
+  }
 
-  const { basePath, coverDefault, artistName, artistUrl, tracks } = musicData;
+  // === Load / flatten sheet ===
+  const sheetData = await fetchSheetData();
 
-  // Flatten logic
-  tracks.forEach((track, originalIndex) => {
-    if (track.file === "#") return;
+  sheetData.forEach((track, originalIndex) => {
+    if (!track.file || track.file === "#") return;
     const files = Array.isArray(track.file) ? track.file : [track.file];
     files.forEach((file, part) => {
       flat_music_list.push({
-        name: track.name,
-        artist: artistName,
-        url: track.url,
-        artistUrl,
-        img: coverDefault,
-        musicSrc: basePath + file,
+        name: track.name || "Untitled",
+        artist: track.artist || "Unknown",
+        url: track.url || "#",
+        artistUrl: track.artistUrl || "#",
+        img: track.cover || "default-cover.png",
+        musicSrc: (track.basePath || "./") + file,
         isMultiPart: files.length > 1,
         partIndex: part,
         originalIndex,
@@ -49,14 +57,14 @@
     });
   });
 
-  // === Helper ===
-  const formatTime = (sec) => {
+  // === Helpers ===
+  const formatTime = sec => {
     const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    return `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
   };
   const reset = () => { curr_time.textContent = total_duration.textContent = "00:00"; seek_slider.value = 0; };
 
-  // === Load / Update ===
+  // === Track Loader / Updater ===
   function loadTrack(index) {
     clearInterval(updateTimer);
     reset();
@@ -70,9 +78,8 @@
 
     curr_track.onloadedmetadata = () => {
       total_duration.textContent = formatTime(curr_track.duration);
-      let logicalCount = 0;
-      for (let i = 0; i <= index; i++) if (flat_music_list[i].partIndex === 0) logicalCount++;
-      const totalSongs = tracks.filter(t => t.file !== "#").length;
+      const logicalCount = flat_music_list.filter((t, i) => i <= index && t.partIndex === 0).length;
+      const totalSongs = flat_music_list.filter(t => t.partIndex === 0).length;
       now_playing.textContent = `Playing ${logicalCount} of ${totalSongs}`;
     };
 
@@ -99,54 +106,31 @@
   const seekTo = () => { curr_track.currentTime = (seek_slider.value / 100) * curr_track.duration; };
   const setVolume = () => { curr_track.volume = volume_slider.value / 100; };
 
-  // --- Multi-part aware navigation ---
   function nextTrack() {
     let next;
     const current = flat_music_list[track_index];
-
-    if (isRandom) {
-      next = Math.floor(Math.random() * flat_music_list.length);
-    } else if (current.isMultiPart && current.partIndex < current.lastPartIndex) {
-      // go to next part of same song
+    if (isRandom) next = Math.floor(Math.random() * flat_music_list.length);
+    else if (current.isMultiPart && current.partIndex < current.lastPartIndex) next = track_index + 1;
+    else {
       next = track_index + 1;
-    } else {
-      // go to next logical song
-      next = track_index + 1;
-      // skip remaining parts of same song (safety in case of corrupted data)
-      while (
-        next < flat_music_list.length &&
-        flat_music_list[next].originalIndex === current.originalIndex
-      ) {
-        next++;
-      }
+      while(next < flat_music_list.length && flat_music_list[next].originalIndex === current.originalIndex) next++;
     }
-
-    if (next >= flat_music_list.length) next = 0;
-    loadTrack(next);
-    playTrack();
+    if(next >= flat_music_list.length) next = 0;
+    loadTrack(next); playTrack();
   }
 
   function prevTrack() {
     const current = flat_music_list[track_index];
     let prev = track_index - 1;
-
     if (current.isMultiPart && current.partIndex > 0) {
-      // If not at first part, go to first part of this multi-part song
-      while (prev >= 0 && flat_music_list[prev].originalIndex === current.originalIndex) {
-        prev--;
-      }
-      prev++; // move back to first part
+      while(prev >= 0 && flat_music_list[prev].originalIndex === current.originalIndex) prev--;
+      prev++;
     } else {
-      // Go to previous song (skip all parts of previous multi-part track)
       const prevTrackOriginal = flat_music_list[track_index - 1]?.originalIndex;
-      while (prev > 0 && flat_music_list[prev - 1].originalIndex === prevTrackOriginal) {
-        prev--;
-      }
+      while(prev > 0 && flat_music_list[prev - 1].originalIndex === prevTrackOriginal) prev--;
     }
-
-    if (prev < 0) prev = flat_music_list.length - 1;
-    loadTrack(prev);
-    playTrack();
+    if(prev < 0) prev = flat_music_list.length - 1;
+    loadTrack(prev); playTrack();
   }
 
   // === Event bindings ===
@@ -157,21 +141,15 @@
   volume_slider.oninput = setVolume;
   curr_track.onended = () => {
     const current = flat_music_list[track_index];
-    if (isRepeating) {
-      curr_track.currentTime = 0;
-      playTrack();
-    } else if (current.isMultiPart && current.partIndex < current.lastPartIndex) {
-      // auto-play next part of same multi-part song
-      loadTrack(track_index + 1);
-      playTrack();
-    } else {
-      nextTrack();
-    }
+    if(isRepeating){ curr_track.currentTime = 0; playTrack(); }
+    else if(current.isMultiPart && current.partIndex < current.lastPartIndex){ loadTrack(track_index + 1); playTrack(); }
+    else nextTrack();
   };
 
   random_btn.onclick = () => { isRandom = !isRandom; random_btn.classList.toggle('active', isRandom); };
   repeat_btn.onclick = () => { isRepeating = !isRepeating; repeat_btn.classList.toggle('active', isRepeating); };
 
-  // === Init ===
-  loadTrack(0);
+  // === Init first track ===
+  if(flat_music_list.length) loadTrack(0);
+
 })();
