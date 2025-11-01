@@ -24,7 +24,7 @@
   let track_index = 0, isPlaying = false, isRandom = false, isRepeating = false, updateTimer = null;
 
   // --- Load JSON data ---
-  const response = await fetch('./data/music.json');
+  const response = await fetch('./json/tcd.json');
   const musicData = await response.json();
 
   const { basePath, coverDefault, artistName, artistUrl, tracks } = musicData;
