@@ -99,15 +99,53 @@
   const seekTo = () => { curr_track.currentTime = (seek_slider.value / 100) * curr_track.duration; };
   const setVolume = () => { curr_track.volume = volume_slider.value / 100; };
 
+  // --- Multi-part aware navigation ---
   function nextTrack() {
-    let next = track_index + 1;
-    if (isRandom) next = Math.floor(Math.random() * flat_music_list.length);
+    let next;
+    const current = flat_music_list[track_index];
+
+    if (isRandom) {
+      next = Math.floor(Math.random() * flat_music_list.length);
+    } else if (current.isMultiPart && current.partIndex < current.lastPartIndex) {
+      // go to next part of same song
+      next = track_index + 1;
+    } else {
+      // go to next logical song
+      next = track_index + 1;
+      // skip remaining parts of same song (safety in case of corrupted data)
+      while (
+        next < flat_music_list.length &&
+        flat_music_list[next].originalIndex === current.originalIndex
+      ) {
+        next++;
+      }
+    }
+
+    if (next >= flat_music_list.length) next = 0;
     loadTrack(next);
     playTrack();
   }
 
   function prevTrack() {
-    loadTrack(track_index - 1);
+    const current = flat_music_list[track_index];
+    let prev = track_index - 1;
+
+    if (current.isMultiPart && current.partIndex > 0) {
+      // If not at first part, go to first part of this multi-part song
+      while (prev >= 0 && flat_music_list[prev].originalIndex === current.originalIndex) {
+        prev--;
+      }
+      prev++; // move back to first part
+    } else {
+      // Go to previous song (skip all parts of previous multi-part track)
+      const prevTrackOriginal = flat_music_list[track_index - 1]?.originalIndex;
+      while (prev > 0 && flat_music_list[prev - 1].originalIndex === prevTrackOriginal) {
+        prev--;
+      }
+    }
+
+    if (prev < 0) prev = flat_music_list.length - 1;
+    loadTrack(prev);
     playTrack();
   }
 
@@ -117,7 +155,19 @@
   prev_btn.onclick = prevTrack;
   seek_slider.oninput = seekTo;
   volume_slider.oninput = setVolume;
-  curr_track.onended = () => (isRepeating ? (curr_track.currentTime = 0, playTrack()) : nextTrack());
+  curr_track.onended = () => {
+    const current = flat_music_list[track_index];
+    if (isRepeating) {
+      curr_track.currentTime = 0;
+      playTrack();
+    } else if (current.isMultiPart && current.partIndex < current.lastPartIndex) {
+      // auto-play next part of same multi-part song
+      loadTrack(track_index + 1);
+      playTrack();
+    } else {
+      nextTrack();
+    }
+  };
 
   random_btn.onclick = () => { isRandom = !isRandom; random_btn.classList.toggle('active', isRandom); };
   repeat_btn.onclick = () => { isRepeating = !isRepeating; repeat_btn.classList.toggle('active', isRepeating); };
