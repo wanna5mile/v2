@@ -2,48 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#222" />
-  <title>Music Player v2</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="theme-color" content="#222"/>
+  <title>v2</title>
 
-  <!-- Styles -->
   <link rel="stylesheet" href="index.css" />
-  <link 
-    rel="stylesheet" 
-    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/css/all.min.css" 
-  />
-  <link 
-    rel="icon" 
-    href="https://d1yjjnpx0p53s8.cloudfront.net/pp840x830-pad1000x1000f8f8f8.jpg?9oPTJs..erd0K9tiddIL4J9OjiCfetIN" 
-  />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/css/all.min.css" />
+  <link rel="icon" href="https://d1yjjnpx0p53s8.cloudfront.net/pp840x830-pad1000x1000f8f8f8.jpg?9oPTJs..erd0K9tiddIL4J9OjiCfetIN" />
 </head>
 <body>
 
-  <!-- === STICKERS === -->
-  <img 
-    src="images/sticker-top.png" 
-    alt="Sticker Top" 
-    class="stickers sticker-up" 
-    width="200" 
-    height="200" 
-    decoding="async"
-  >
-  <img 
-    src="images/sticker-bottom.png" 
-    alt="Sticker Bottom" 
-    class="stickers sticker-down" 
-    width="200" 
-    height="200" 
-    decoding="async"
-  >
-
-  <!-- === MUSIC PLAYER === -->
+  <!-- Music Player -->
   <div class="container" id="musicPlayer">
     <div class="player card">
       <div class="wrapper">
         <div class="details">
-          <div class="track-art vinyl" id="vinylContainer">
-            <div class="cover-art cover" id="coverArt"></div>
+          <div class="track-art">
+            <div class="cover"></div>
           </div>
           <a class="track-name" href="#" target="_blank">Track Name</a>
           <a class="track-artist" href="#" target="_blank">Track Artist</a>
@@ -82,7 +57,6 @@
         </div>
       </div>
       
-      <!-- Audio Visualizer -->
       <div id="wave" class="loader">
         <span class="stroke"></span>
         <span class="stroke"></span>
@@ -93,10 +67,41 @@
         <span class="stroke"></span>
       </div>
     </div>
+
+    <img src="images/normal-cupid.png" alt="Flipped Cupid" class="cupid cupid-music-player" loading="lazy" decoding="async" width="200" height="200">
   </div>
 
-  <!-- === SCRIPTS === -->
+  <!-- Footer -->
+  <div class="footer" id="footer">
+    <a href="https://github.com/jag-proj3ct/jag-proj3ct.github.io/tree/main">Source</a>
+    <a href="#">Actual Teacher Voting</a> 
+    <a href="license.html">License and Copyright</a>
+    <a href="./html/bloopers.html">Bloopers</a>
+    <a href="#">Version:0.9.9.3</a>
+  </div>
+
+  <!-- Scripts -->
+  <script>
+    // Only fetch votes, no voting
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyx1pB3AbeDIaWFxDANrrEWY2NkgNmRYB3k_aNR109pR5aEVExaWniEc5-oZ0D2xy6FXw/exec";
+    const votesDisplay = document.getElementById("currentVotes");
+
+    async function fetchVotes() {
+      try {
+        const response = await fetch(SCRIPT_URL + "?cb=" + Date.now());
+        const count = await response.text();
+        votesDisplay.textContent = isNaN(parseInt(count)) ? "error" : count;
+      } catch (err) {
+        votesDisplay.textContent = "error";
+      }
+    }
+
+    // Load once + refresh every 5s
+    fetchVotes();
+    setInterval(fetchVotes, 5000);
+  </script>
+  
   <script src="js/music-player.js" defer></script>
-  <script src="js/404.js" defer></script>
+  <script src="js/404.js" defer></script> 
 </body>
 </html>
